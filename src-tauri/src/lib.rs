@@ -111,6 +111,7 @@ fn solve_rack_command(request: SolveRackRequest) -> Result<SolveRackResponse, St
         success_probability: advice.success_probability,
         phase: Some(advice.phase.to_string()),
         notes: advice.notes,
+        focus_tags: advice.focus_tags,
     })
     .collect();
 

@@ -48,6 +48,7 @@ type RerollSuggestion = {
   success_probability?: number | null;
   phase?: string | null;
   notes?: string[];
+  focus_tags?: string[];
 };
 
 type SolveRackResponse = {
@@ -525,6 +526,7 @@ const App = () => {
                   {hasRecommendations
                     ? "These swaps can push for a higher-scoring multiplier play."
                     : "Swap the suggested letters to chase the target word length and multipliers."}
+                  {" "}Focus tags call out the primary goal for each pass.
                 </p>
                 <ul>
                   {result.reroll_suggestions.map((suggestion, idx) => {
@@ -547,6 +549,16 @@ const App = () => {
                             </span>
                           )}
                         </div>
+                        {suggestion.focus_tags &&
+                          suggestion.focus_tags.length > 0 && (
+                            <ul className="focus-tags">
+                              {suggestion.focus_tags.map((tag, tagIdx) => (
+                                <li key={`${suggestion.target_word}-tag-${tagIdx}`}>
+                                  {tag}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         <div className="meta">
                           {suggestion.phase && (
                             <span>
