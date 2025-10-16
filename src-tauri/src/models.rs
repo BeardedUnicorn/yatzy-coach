@@ -66,4 +66,6 @@ pub struct RerollSuggestion {
     pub phase: Option<String>,
     #[serde(default)]
     pub notes: Vec<String>,
+    #[serde(default)]
+    pub focus_tags: Vec<String>,
 }

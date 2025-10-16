@@ -135,6 +135,7 @@ pub struct RerollAdvice {
     pub success_probability: Option<f64>,
     pub phase: &'static str,
     pub notes: Vec<String>,
+    pub focus_tags: Vec<String>,
 }
 
 pub fn solve_rack(
@@ -224,6 +225,7 @@ struct PassOneOutcome {
     desired_letters: Vec<char>,
     notes: Vec<String>,
     vowel_min: usize,
+    focus_tags: Vec<String>,
 }
 
 impl PassOneOutcome {
@@ -242,6 +244,7 @@ impl PassOneOutcome {
             success_probability: probability,
             phase: "foundation",
             notes: self.notes.clone(),
+            focus_tags: self.focus_tags.clone(),
         }
     }
 }
@@ -279,6 +282,7 @@ fn analyze_pass_one(
     let rack_len = letters.len();
     let mut keep_flags = vec![true; rack_len];
     let mut notes: Vec<String> = Vec::new();
+    let mut focus_tags: Vec<String> = Vec::new();
     let mut desired_letters: Vec<char> = Vec::new();
 
     let mut positions_by_letter: Vec<Vec<usize>> = vec![Vec::new(); 26];
@@ -304,6 +308,7 @@ fn analyze_pass_one(
             }
             if positions.len() > 2 {
                 push_note(&mut notes, format!("Trim extra {}", letter));
+                push_focus_tag(&mut focus_tags, "Trim duplicates");
             }
         }
     }
@@ -324,12 +329,14 @@ fn analyze_pass_one(
         }
         if dropped_q {
             push_note(&mut notes, "Dump Q (no U)".to_string());
+            push_focus_tag(&mut focus_tags, "Fix Q support");
         } else {
             push_unique_char(&mut desired_letters, 'U');
             push_note(
                 &mut notes,
                 "Need U to unlock your Q for TL/DL plays".to_string(),
             );
+            push_focus_tag(&mut focus_tags, "Fix Q support");
         }
         kept_counts = compute_kept_counts(letters, &keep_flags);
         kept_vowels = count_kept_vowels(letters, &keep_flags);
@@ -345,6 +352,7 @@ fn analyze_pass_one(
                 keep_flags[pos] = false;
             }
             push_note(&mut notes, "Drop V until you secure A/E/I/O".to_string());
+            push_focus_tag(&mut focus_tags, "Balance vowels");
             kept_counts = compute_kept_counts(letters, &keep_flags);
             kept_vowels = count_kept_vowels(letters, &keep_flags);
         }
@@ -392,6 +400,7 @@ fn analyze_pass_one(
                 &mut notes,
                 format!("Trim excess vowels ({})", format_letters(&trimmed)),
             );
+            push_focus_tag(&mut focus_tags, "Balance vowels");
         }
         kept_counts = compute_kept_counts(letters, &keep_flags);
         kept_vowels = count_kept_vowels(letters, &keep_flags);
@@ -441,6 +450,7 @@ fn analyze_pass_one(
                     format_letters(&dropped_letters)
                 ),
             );
+            push_focus_tag(&mut focus_tags, "Add vowels");
         }
 
         push_unique_char(&mut desired_letters, 'E');
@@ -450,6 +460,7 @@ fn analyze_pass_one(
             &mut notes,
             "Aim for two reliable vowels (E/A/I)".to_string(),
         );
+        push_focus_tag(&mut focus_tags, "Add vowels");
     }
 
     kept_counts = compute_kept_counts(letters, &keep_flags);
@@ -460,6 +471,7 @@ fn analyze_pass_one(
             &mut notes,
             format!("Preserve blends ({})", preserved_pairs.join(", ")),
         );
+        push_focus_tag(&mut focus_tags, "Protect blends");
     }
 
     let keep_letters: Vec<char> = letters
@@ -478,6 +490,7 @@ fn analyze_pass_one(
 
     if keep_letters.iter().any(|&ch| ch == 'S') {
         push_note(&mut notes, "Keep S for easy hooks".to_string());
+        push_focus_tag(&mut focus_tags, "Keep S hot");
     }
     if keep_letters
         .iter()
@@ -487,6 +500,7 @@ fn analyze_pass_one(
             &mut notes,
             "Hold glue consonants (R, T, L, N, D, M, P, C, H)".to_string(),
         );
+        push_focus_tag(&mut focus_tags, "Keep glue consonants");
     }
     if keep_letters
         .iter()
@@ -496,12 +510,14 @@ fn analyze_pass_one(
             &mut notes,
             "Keep one premium hitter ready for TL".to_string(),
         );
+        push_focus_tag(&mut focus_tags, "Prep TL hitter");
     }
     if reroll_letters.is_empty() {
         push_note(
             &mut notes,
             "Rack already balanced — optional reroll".to_string(),
         );
+        push_focus_tag(&mut focus_tags, "Fine-tune only");
     }
 
     PassOneOutcome {
@@ -511,6 +527,7 @@ fn analyze_pass_one(
         desired_letters: desired_letters.into_iter().take(8).collect(),
         notes,
         vowel_min,
+        focus_tags,
     }
 }
 
@@ -522,6 +539,7 @@ fn analyze_pass_two(
 ) -> Option<RerollAdvice> {
     let mut keep_flags = pass_one.keep_flags.clone();
     let mut notes: Vec<String> = Vec::new();
+    let mut focus_tags: Vec<String> = Vec::new();
     let mut desired_letters: Vec<char> = Vec::new();
 
     let mut keep_counts = compute_kept_counts(letters, &keep_flags);
@@ -547,6 +565,7 @@ fn analyze_pass_two(
     if !has_s {
         push_unique_char(&mut desired_letters, 'S');
         push_note(&mut notes, "Look for an S to extend words".to_string());
+        push_focus_tag(&mut focus_tags, "Find S hook");
     }
 
     let needs_lengtheners = target_length >= 6 && current_lengtheners < 2;
@@ -558,6 +577,7 @@ fn analyze_pass_two(
             &mut notes,
             "Chase lengtheners (-ER/-ED/-ING/-LY) to stretch onto DW/TW".to_string(),
         );
+        push_focus_tag(&mut focus_tags, "Chase lengtheners");
     }
 
     if current_tl_hitters == 0 {
@@ -568,6 +588,7 @@ fn analyze_pass_two(
             &mut notes,
             "Fish for a TL hitter (J/X/Z/K/H/F/W/Y)".to_string(),
         );
+        push_focus_tag(&mut focus_tags, "Find TL hitter");
     }
 
     if desired_letters.is_empty() && reroll_letters.is_empty() {
@@ -641,6 +662,7 @@ fn analyze_pass_two(
                 format_letters(&dropped)
             ),
         );
+        push_focus_tag(&mut focus_tags, "Upgrade multipliers");
     }
 
     let keep_letters: Vec<char> = letters
@@ -664,6 +686,7 @@ fn analyze_pass_two(
         success_probability: probability,
         phase: "target",
         notes,
+        focus_tags,
     })
 }
 
@@ -777,6 +800,16 @@ fn push_note(notes: &mut Vec<String>, note: impl Into<String>) {
     let text = note.into();
     if !notes.contains(&text) {
         notes.push(text);
+    }
+}
+
+fn push_focus_tag(tags: &mut Vec<String>, tag: impl Into<String>) {
+    let text = tag.into();
+    if !tags
+        .iter()
+        .any(|existing| existing.eq_ignore_ascii_case(&text))
+    {
+        tags.push(text);
     }
 }
 
