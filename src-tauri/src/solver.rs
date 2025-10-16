@@ -360,6 +360,7 @@ fn analyze_pass_one(
     }
 
     let (vowel_min, vowel_max) = desired_vowel_range(rack_len, target_length);
+    let requires_three_vowels = vowel_min >= 3;
 
     if kept_vowels > vowel_max {
         let excess = kept_vowels - vowel_max;
@@ -390,6 +391,9 @@ fn analyze_pass_one(
             }
             let ch = letters[idx];
             if would_violate_baseline(char_to_index(ch), &keep_flags, &letters, baseline_counts) {
+                continue;
+            }
+            if kept_vowels.saturating_sub(removed + 1) < vowel_min {
                 continue;
             }
             keep_flags[idx] = false;
@@ -457,10 +461,18 @@ fn analyze_pass_one(
         push_unique_char(&mut desired_letters, 'E');
         push_unique_char(&mut desired_letters, 'A');
         push_unique_char(&mut desired_letters, 'I');
-        push_note(
-            &mut notes,
-            "Aim for two reliable vowels (E/A/I)".to_string(),
-        );
+        if requires_three_vowels {
+            push_unique_char(&mut desired_letters, 'O');
+        }
+        let vowel_goal_note = if requires_three_vowels {
+            "Lock three reliable vowels (E/A/I/O) for the 7-letter push"
+        } else {
+            "Aim for two reliable vowels (E/A/I)"
+        };
+        push_note(&mut notes, vowel_goal_note.to_string());
+        if requires_three_vowels {
+            push_focus_tag(&mut focus_tags, "Lock 3 vowels");
+        }
         push_focus_tag(&mut focus_tags, "Add vowels");
     }
 
@@ -574,6 +586,17 @@ fn analyze_pass_two(
         push_unique_char(&mut desired_letters, 'S');
         push_note(&mut notes, "Look for an S to extend words".to_string());
         push_focus_tag(&mut focus_tags, "Find S hook");
+    }
+
+    if pass_one.vowel_min >= 3 && current_vowels < pass_one.vowel_min {
+        for &ch in ['E', 'A', 'I', 'O'].iter() {
+            push_unique_char(&mut desired_letters, ch);
+        }
+        push_note(
+            &mut notes,
+            "Still missing a third vowel—lock one in before chasing premiums".to_string(),
+        );
+        push_focus_tag(&mut focus_tags, "Lock 3 vowels");
     }
 
     let mut chase_lengtheners = false;
@@ -750,7 +773,10 @@ fn desired_vowel_range(rack_len: usize, target_length: usize) -> (usize, usize) 
         return (0, 0);
     }
 
-    if rack_len <= 4 {
+    if rack_len >= 7 && target_length >= 7 {
+        let floor = 3.min(rack_len);
+        (floor, floor)
+    } else if rack_len <= 4 {
         (1.min(rack_len), 2.min(rack_len))
     } else if rack_len == 5 || target_length <= 5 {
         (2.min(rack_len), 2.min(rack_len))
