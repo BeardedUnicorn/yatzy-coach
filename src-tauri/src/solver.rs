@@ -248,6 +248,27 @@ impl PassOneOutcome {
 const GLUE_CONSONANTS: &[char] = &['R', 'S', 'T', 'L', 'N', 'D', 'M', 'P', 'C', 'H'];
 const TL_HITTERS: &[char] = &['J', 'X', 'Z', 'K', 'H', 'F', 'W', 'Y', 'V', 'M', 'P', 'C'];
 const LENGTHENER_LETTERS: &[char] = &['E', 'R', 'I', 'N', 'G', 'L', 'Y', 'D', 'S'];
+const PROTECTED_PAIRS: &[(char, char)] = &[
+    ('C', 'H'),
+    ('S', 'H'),
+    ('T', 'H'),
+    ('P', 'H'),
+    ('S', 'T'),
+    ('T', 'R'),
+    ('P', 'R'),
+    ('C', 'R'),
+    ('B', 'R'),
+    ('D', 'R'),
+    ('C', 'L'),
+    ('G', 'L'),
+    ('P', 'L'),
+    ('F', 'R'),
+    ('G', 'R'),
+    ('S', 'L'),
+    ('S', 'N'),
+    ('S', 'P'),
+    ('Q', 'U'),
+];
 
 fn analyze_pass_one(
     letters: &[char],
@@ -292,13 +313,23 @@ fn analyze_pass_one(
     let q_idx = char_to_index('Q');
     let u_idx = char_to_index('U');
     if kept_counts[q_idx] > 0 && kept_counts[u_idx] == 0 {
+        let mut dropped_q = false;
         for &pos in &positions_by_letter[q_idx] {
             if would_violate_baseline(q_idx, &keep_flags, &letters, baseline_counts) {
                 continue;
             }
             keep_flags[pos] = false;
+            dropped_q = true;
         }
-        push_note(&mut notes, "Dump Q (no U)".to_string());
+        if dropped_q {
+            push_note(&mut notes, "Dump Q (no U)".to_string());
+        } else {
+            push_unique_char(&mut desired_letters, 'U');
+            push_note(
+                &mut notes,
+                "Need U to unlock your Q for TL/DL plays".to_string(),
+            );
+        }
         kept_counts = compute_kept_counts(letters, &keep_flags);
         kept_vowels = count_kept_vowels(letters, &keep_flags);
     }
@@ -388,12 +419,17 @@ fn analyze_pass_one(
             if ch == 'S' || is_glue_consonant(ch) {
                 continue;
             }
+            if would_break_protected_pair(ch, &kept_counts) {
+                continue;
+            }
             if would_violate_baseline(char_to_index(ch), &keep_flags, &letters, baseline_counts) {
                 continue;
             }
             keep_flags[idx] = false;
             dropped_letters.push(ch);
             needed = needed.saturating_sub(1);
+            let letter_idx = char_to_index(ch);
+            kept_counts[letter_idx] = kept_counts[letter_idx].saturating_sub(1);
         }
 
         if !dropped_letters.is_empty() {
@@ -412,6 +448,16 @@ fn analyze_pass_one(
         push_note(
             &mut notes,
             "Aim for two reliable vowels (E/A/I)".to_string(),
+        );
+    }
+
+    kept_counts = compute_kept_counts(letters, &keep_flags);
+
+    let preserved_pairs = collect_protected_pairs(&kept_counts);
+    if !preserved_pairs.is_empty() {
+        push_note(
+            &mut notes,
+            format!("Preserve blends ({})", preserved_pairs.join(", ")),
         );
     }
 
@@ -554,6 +600,9 @@ fn analyze_pass_two(
         if ch == 'S' || is_glue_consonant(ch) {
             continue;
         }
+        if would_break_protected_pair(ch, &keep_counts) {
+            continue;
+        }
         if is_lengthener_letter(ch) && needs_lengtheners && current_lengtheners <= 2 {
             continue;
         }
@@ -673,6 +722,40 @@ fn is_lengthener_letter(ch: char) -> bool {
 
 fn is_tl_candidate(ch: char) -> bool {
     TL_HITTERS.contains(&ch)
+}
+
+fn would_break_protected_pair(ch: char, keep_counts: &[u8; 26]) -> bool {
+    for &(a, b) in PROTECTED_PAIRS {
+        if ch == a {
+            let a_count = keep_counts[char_to_index(a)];
+            let b_count = keep_counts[char_to_index(b)];
+            if a_count <= 1 && b_count > 0 {
+                return true;
+            }
+        } else if ch == b {
+            let a_count = keep_counts[char_to_index(a)];
+            let b_count = keep_counts[char_to_index(b)];
+            if b_count <= 1 && a_count > 0 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn collect_protected_pairs(keep_counts: &[u8; 26]) -> Vec<String> {
+    let mut pairs: Vec<String> = Vec::new();
+    for &(a, b) in PROTECTED_PAIRS {
+        let a_count = keep_counts[char_to_index(a)];
+        let b_count = keep_counts[char_to_index(b)];
+        if a_count > 0 && b_count > 0 {
+            let pair = format!("{}{}", a, b);
+            if !pairs.contains(&pair) {
+                pairs.push(pair);
+            }
+        }
+    }
+    pairs
 }
 
 fn char_to_index(ch: char) -> usize {
