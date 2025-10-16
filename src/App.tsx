@@ -8,6 +8,19 @@ const WORD_TRACKER_STORAGE_KEY = "yatzy-coach::word-tracker";
 type BonusOption = "NONE" | "DL" | "TL" | "DW" | "TW";
 const BONUS_OPTIONS: BonusOption[] = ["NONE", "DL", "TL", "DW", "TW"];
 
+type RoundOption = {
+  value: string;
+  label: string;
+};
+
+const ROUND_OPTIONS: RoundOption[] = [
+  { value: "1", label: "Round 1 (×1)" },
+  { value: "2", label: "Round 2 (×2)" },
+  { value: "3", label: "Round 3 (×3)" },
+  { value: "4", label: "Round 4 (×4)" },
+  { value: "5", label: "Round 5 (×5)" },
+];
+
 const BONUS_LABELS: Record<BonusOption, string> = {
   NONE: "None",
   DL: "DL",
@@ -41,6 +54,7 @@ type SolveRackResponse = {
   rack_letters: string[];
   target_word_length?: number | null;
   rack_bonuses?: BonusOption[];
+  round?: number | null;
   recommendations: WordRecommendation[];
   reroll_suggestions?: RerollSuggestion[];
 };
@@ -83,6 +97,7 @@ const App = () => {
   const [rackBonuses, setRackBonuses] = useState<BonusOption[]>(
     Array.from({ length: RACK_SIZE }, () => "NONE"),
   );
+  const [round, setRound] = useState<string>("1");
   const [result, setResult] = useState<SolveRackResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -183,6 +198,14 @@ const App = () => {
     });
   }, []);
 
+  const handleRoundChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      setRound(event.target.value);
+      setError(null);
+    },
+    [],
+  );
+
   const handleSolve = useCallback(async () => {
     let targetValue: number | null = null;
 
@@ -206,11 +229,17 @@ const App = () => {
     setIsLoading(true);
 
     try {
+      const parsedRound = Number.parseInt(round, 10);
+      if (Number.isNaN(parsedRound) || parsedRound < 1 || parsedRound > 5) {
+        throw new Error("Select a valid round between 1 and 5.");
+      }
+
       const payload = {
         rack_letters: rackLetters,
         target_word_length: targetValue,
         invalid_words: invalidWords,
         rack_bonuses: rackBonuses,
+        round: parsedRound,
       };
 
       const response = await invoke<SolveRackResponse>("solve_rack_command", {
@@ -250,6 +279,7 @@ const App = () => {
     rackLetters,
     rackBonuses,
     invalidWords,
+    round,
   ]);
 
   const handleMarkInvalid = useCallback((word: string) => {
@@ -344,11 +374,11 @@ const App = () => {
           given a multiplier to reflect bag bonuses.
         </p>
 
-        <div className="rack-controls">
-          <label className="field">
-            <span>Rack letters</span>
-            <input
-              value={rackText}
+          <div className="rack-controls">
+            <label className="field">
+              <span>Rack letters</span>
+              <input
+                value={rackText}
               onChange={handleRackInputChange}
               placeholder="ENTER7"
               maxLength={RACK_SIZE}
@@ -409,6 +439,17 @@ const App = () => {
               />
             </label>
 
+            <label className="field round-select">
+              <span>Round</span>
+              <select value={round} onChange={handleRoundChange}>
+                {ROUND_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <button
               type="button"
               className="primary"
@@ -439,6 +480,9 @@ const App = () => {
               ) : (
                 <span>Any length</span>
               )}
+              {result.round ? (
+                <span>Round: {result.round} (×{result.round})</span>
+              ) : null}
             </div>
           </div>
 

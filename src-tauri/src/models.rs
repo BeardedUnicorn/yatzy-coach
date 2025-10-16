@@ -28,6 +28,8 @@ pub struct SolveRackRequest {
     pub invalid_words: Vec<String>,
     #[serde(default)]
     pub rack_bonuses: Vec<String>,
+    #[serde(default)]
+    pub round: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -38,6 +40,8 @@ pub struct SolveRackResponse {
     pub target_word_length: Option<u8>,
     #[serde(default)]
     pub rack_bonuses: Vec<String>,
+    #[serde(default)]
+    pub round: Option<u8>,
     #[serde(default)]
     pub recommendations: Vec<WordRecommendation>,
     #[serde(default)]

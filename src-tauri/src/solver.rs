@@ -143,6 +143,7 @@ pub fn solve_rack(
     invalid: &HashSet<String>,
     limit: usize,
     bonuses: &[Bonus],
+    round_multiplier: u32,
 ) -> Vec<RackCandidate> {
     if letters.is_empty() {
         return Vec::new();
@@ -156,7 +157,7 @@ pub fn solve_rack(
         .filter(|word| !invalid.contains(*word))
         .filter(|word| word_fits(word, &rack_counts))
         .filter_map(|word| {
-            score_word_with_bonuses(word, bonuses).map(|score| RackCandidate {
+            score_word_with_bonuses(word, bonuses, round_multiplier).map(|score| RackCandidate {
                 word: word.clone(),
                 score,
             })
@@ -932,7 +933,7 @@ fn would_violate_baseline(
     current <= required
 }
 
-fn score_word_with_bonuses(word: &str, bonuses: &[Bonus]) -> Option<u32> {
+fn score_word_with_bonuses(word: &str, bonuses: &[Bonus], round_multiplier: u32) -> Option<u32> {
     let mut sum: u32 = 0;
     let mut word_multiplier: u32 = 1;
 
@@ -943,7 +944,10 @@ fn score_word_with_bonuses(word: &str, bonuses: &[Bonus]) -> Option<u32> {
         word_multiplier = word_multiplier.saturating_mul(bonus.word_multiplier());
     }
 
-    Some(sum.saturating_mul(word_multiplier))
+    Some(
+        sum.saturating_mul(word_multiplier)
+            .saturating_mul(round_multiplier),
+    )
 }
 
 fn word_fits(word: &str, rack_counts: &[u8; 26]) -> bool {
