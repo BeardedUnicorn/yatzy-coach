@@ -252,6 +252,7 @@ impl PassOneOutcome {
 const GLUE_CONSONANTS: &[char] = &['R', 'S', 'T', 'L', 'N', 'D', 'M', 'P', 'C', 'H'];
 const TL_HITTERS: &[char] = &['J', 'X', 'Z', 'K', 'H', 'F', 'W', 'Y', 'V', 'M', 'P', 'C'];
 const LENGTHENER_LETTERS: &[char] = &['E', 'R', 'I', 'N', 'G', 'L', 'Y', 'D', 'S'];
+const LENGTHENER_TRIADS: &[&[char]] = &[&['I', 'N', 'G'], &['E', 'R', 'S']];
 const PROTECTED_PAIRS: &[(char, char)] = &[
     ('C', 'H'),
     ('S', 'H'),
@@ -549,6 +550,13 @@ fn analyze_pass_two(
         .enumerate()
         .filter(|(idx, &ch)| keep_flags[*idx] && is_lengthener_letter(ch))
         .count();
+    let lengthener_uniques: HashSet<char> = letters
+        .iter()
+        .enumerate()
+        .filter(|(idx, &ch)| keep_flags[*idx] && is_lengthener_letter(ch))
+        .map(|(_, &ch)| ch)
+        .collect();
+    let mut current_unique_lengtheners = lengthener_uniques.len();
     let mut current_tl_hitters = letters
         .iter()
         .enumerate()
@@ -568,8 +576,34 @@ fn analyze_pass_two(
         push_focus_tag(&mut focus_tags, "Find S hook");
     }
 
-    let needs_lengtheners = target_length >= 6 && current_lengtheners < 2;
-    if needs_lengtheners {
+    let mut chase_lengtheners = false;
+    let mut protect_lengtheners = false;
+    if target_length >= 7 {
+        if current_unique_lengtheners < 3 {
+            chase_lengtheners = true;
+            protect_lengtheners = true;
+        }
+        for triad in LENGTHENER_TRIADS {
+            let mut missing: Vec<char> = triad
+                .iter()
+                .copied()
+                .filter(|ch| !lengthener_uniques.contains(ch))
+                .collect();
+            if !missing.is_empty() {
+                chase_lengtheners = true;
+                protect_lengtheners = true;
+                missing.sort_unstable();
+                for ch in missing {
+                    push_unique_char(&mut desired_letters, ch);
+                }
+            }
+        }
+    } else if current_lengtheners < 2 {
+        chase_lengtheners = true;
+        protect_lengtheners = true;
+    }
+
+    if chase_lengtheners {
         for &ch in LENGTHENER_LETTERS {
             push_unique_char(&mut desired_letters, ch);
         }
@@ -625,8 +659,14 @@ fn analyze_pass_two(
         if would_break_protected_pair(ch, &keep_counts) {
             continue;
         }
-        if is_lengthener_letter(ch) && needs_lengtheners && current_lengtheners <= 2 {
-            continue;
+        if is_lengthener_letter(ch) {
+            if target_length >= 7 {
+                if protect_lengtheners || current_unique_lengtheners <= 3 {
+                    continue;
+                }
+            } else if current_lengtheners <= 2 {
+                continue;
+            }
         }
         if is_tl_candidate(ch) && current_tl_hitters <= 1 {
             continue;
@@ -648,6 +688,21 @@ fn analyze_pass_two(
         }
         if is_lengthener_letter(ch) {
             current_lengtheners = current_lengtheners.saturating_sub(1);
+            if keep_counts[char_to_index(ch)] == 0 {
+                current_unique_lengtheners = current_unique_lengtheners.saturating_sub(1);
+            }
+            if target_length >= 7 {
+                if current_unique_lengtheners <= 3 {
+                    protect_lengtheners = true;
+                }
+                if LENGTHENER_TRIADS.iter().any(|triad| {
+                    triad
+                        .iter()
+                        .any(|&triad_ch| keep_counts[char_to_index(triad_ch)] == 0)
+                }) {
+                    protect_lengtheners = true;
+                }
+            }
         }
         if is_tl_candidate(ch) {
             current_tl_hitters = current_tl_hitters.saturating_sub(1);
@@ -1007,4 +1062,27 @@ fn letter_counts(letters: &[char]) -> [u8; 26] {
         }
     }
     counts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn pass_two_chases_lengthener_triads_for_long_targets() {
+        let rack: Vec<char> = "ABCDINT".chars().collect();
+        let advice = suggest_rerolls(&rack, 7, &HashSet::new(), 3, None);
+        let pass_two = advice
+            .iter()
+            .find(|entry| entry.phase == "target")
+            .expect("expected pass-two advice");
+
+        assert!(pass_two.missing_letters.contains(&'G'));
+        assert!(pass_two.missing_letters.contains(&'E'));
+        assert!(!pass_two
+            .notes
+            .iter()
+            .any(|note| note.contains("Rack already balanced")));
+    }
 }
