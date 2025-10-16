@@ -128,7 +128,7 @@
 - Plan: mid‑high on DL; hit **DW**.
 
 **7‑letter target (TL@7 + DW@6)**
-- Keep: 2–3 vowels; S; **‑ING/‑Y/‑K** endings.
+- Keep: **3 vowels minimum** (ideally E/A/I/O mix); S; **‑ING/‑Y/‑K** endings.
 - Plan: **DW** first, then best available on **TL@7**.
 
 ---
