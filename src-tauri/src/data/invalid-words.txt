@@ -1,0 +1,5 @@
+# Add one word per line (uppercase or lowercase) to permanently filter it
+# from solver results. Lines starting with # are ignored.
+# Example entries:
+# AA
+# ZZZZZZ
