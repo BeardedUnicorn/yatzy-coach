@@ -19,6 +19,7 @@ fn solve_rack_command(request: SolveRackRequest) -> Result<SolveRackResponse, St
         target_word_length,
         invalid_words,
         rack_bonuses,
+        round,
     } = request;
 
     let normalized_letters: Vec<char> = rack_letters
@@ -46,6 +47,12 @@ fn solve_rack_command(request: SolveRackRequest) -> Result<SolveRackResponse, St
 
     let target_filter = target_word_length.map(|len| len as usize);
 
+    let round_value = round.unwrap_or(1);
+    if !(1..=5).contains(&round_value) {
+        return Err("Round must be between 1 and 5.".into());
+    }
+    let round_multiplier = u32::from(round_value);
+
     let normalized_bonuses: Vec<solver::Bonus> = rack_bonuses
         .into_iter()
         .map(|value| solver::Bonus::from_str_raw(&value))
@@ -57,6 +64,7 @@ fn solve_rack_command(request: SolveRackRequest) -> Result<SolveRackResponse, St
         &normalized_invalid,
         DEFAULT_LIMIT,
         &normalized_bonuses,
+        round_multiplier,
     );
 
     let recommendations: Vec<WordRecommendation> = candidates
@@ -119,6 +127,7 @@ fn solve_rack_command(request: SolveRackRequest) -> Result<SolveRackResponse, St
         rack_letters: rack_for_response,
         target_word_length,
         rack_bonuses: bonuses_for_response,
+        round: Some(round_value),
         recommendations,
         reroll_suggestions,
     })
